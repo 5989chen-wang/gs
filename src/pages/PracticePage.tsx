@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ChevronLeft, ChevronRight, CheckCircle, XCircle, Lightbulb, BookOpen, BookMarked, Briefcase, FileText, Newspaper, Scale } from 'lucide-react'
 import { chapters } from '../data/questions'
 import { useExamStore } from '../store/examStore'
@@ -15,17 +15,51 @@ const iconMap: Record<string, typeof BookOpen> = {
 type AnswerState = 'unanswered' | 'correct' | 'wrong'
 
 function PracticePage() {
-  const [selectedChapter, setSelectedChapter] = useState('all')
-  const [currentIndex, setCurrentIndex] = useState(0)
+  const {
+    lastChapterId,
+    currentQuestionIndex,
+    setLastChapterId,
+    setCurrentQuestionIndex,
+    getQuestionsByChapter,
+    addWrongQuestion,
+    recordAnswer,
+    userAnswers,
+    user
+  } = useExamStore()
+
+  const [selectedChapter, setSelectedChapter] = useState(lastChapterId)
+  const [localIndex, setLocalIndex] = useState(currentQuestionIndex)
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null)
   const [answerState, setAnswerState] = useState<AnswerState>('unanswered')
   const [showAnalysis, setShowAnalysis] = useState(false)
 
-  const questionsList = useExamStore((state) => state.getQuestionsByChapter(selectedChapter))
-  const addWrongQuestion = useExamStore((state) => state.addWrongQuestion)
-  const recordAnswer = useExamStore((state) => state.recordAnswer)
+  const questionsList = getQuestionsByChapter(selectedChapter)
+  const currentQuestion = questionsList[localIndex]
 
-  const currentQuestion = questionsList[currentIndex]
+  useEffect(() => {
+    const savedAnswer = userAnswers[currentQuestion?.id]
+    if (savedAnswer !== undefined) {
+      setSelectedAnswer(savedAnswer)
+      const isCorrect = savedAnswer === currentQuestion?.correctIndex
+      setAnswerState(isCorrect ? 'correct' : 'wrong')
+      setShowAnalysis(true)
+    }
+  }, [currentQuestion, userAnswers])
+
+  useEffect(() => {
+    setLocalIndex(0)
+    setSelectedAnswer(null)
+    setAnswerState('unanswered')
+    setShowAnalysis(false)
+  }, [selectedChapter])
+
+  useEffect(() => {
+    setCurrentQuestionIndex(localIndex)
+  }, [localIndex, setCurrentQuestionIndex])
+
+  useEffect(() => {
+    setLastChapterId(selectedChapter)
+  }, [selectedChapter, setLastChapterId])
 
   if (!currentQuestion) {
     return (
@@ -53,8 +87,8 @@ function PracticePage() {
   }
 
   const handleNext = () => {
-    if (currentIndex < questionsList.length - 1) {
-      setCurrentIndex(currentIndex + 1)
+    if (localIndex < questionsList.length - 1) {
+      setLocalIndex(localIndex + 1)
       setSelectedAnswer(null)
       setAnswerState('unanswered')
       setShowAnalysis(false)
@@ -62,8 +96,8 @@ function PracticePage() {
   }
 
   const handlePrev = () => {
-    if (currentIndex > 0) {
-      setCurrentIndex(currentIndex - 1)
+    if (localIndex > 0) {
+      setLocalIndex(localIndex - 1)
       setSelectedAnswer(null)
       setAnswerState('unanswered')
       setShowAnalysis(false)
@@ -72,10 +106,6 @@ function PracticePage() {
 
   const handleChapterChange = (chapterId: string) => {
     setSelectedChapter(chapterId)
-    setCurrentIndex(0)
-    setSelectedAnswer(null)
-    setAnswerState('unanswered')
-    setShowAnalysis(false)
   }
 
   const getOptionLabel = (index: number) => {
@@ -144,11 +174,25 @@ function PracticePage() {
         </div>
       </div>
 
+      {user && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <div className="flex items-center space-x-3">
+            <div className="bg-blue-100 w-10 h-10 rounded-full flex items-center justify-center">
+              <BookOpen className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <p className="text-blue-800 font-medium">学习进度已保存</p>
+              <p className="text-blue-600 text-sm">下次访问将从第 {localIndex + 1} 题继续</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-xl shadow-md overflow-hidden">
         <div className="bg-gradient-to-r from-primary-600 to-blue-500 px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <span className="text-white/80">第 {currentIndex + 1} / {questionsList.length} 题</span>
+              <span className="text-white/80">第 {localIndex + 1} / {questionsList.length} 题</span>
               {getDifficultyBadge(currentQuestion.difficulty)}
             </div>
             <span className="text-white/80">{currentQuestion.chapter}</span>
@@ -205,9 +249,9 @@ function PracticePage() {
           <div className="flex justify-between mt-6 pt-4 border-t border-gray-100">
             <button
               onClick={handlePrev}
-              disabled={currentIndex === 0}
+              disabled={localIndex === 0}
               className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 ${
-                currentIndex === 0
+                localIndex === 0
                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
@@ -218,9 +262,9 @@ function PracticePage() {
             
             <button
               onClick={handleNext}
-              disabled={currentIndex === questionsList.length - 1}
+              disabled={localIndex === questionsList.length - 1}
               className={`flex items-center space-x-2 px-6 py-2 rounded-lg transition-all duration-200 ${
-                currentIndex === questionsList.length - 1
+                localIndex === questionsList.length - 1
                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                   : 'bg-primary-600 text-white hover:bg-primary-700 shadow-md'
               }`}

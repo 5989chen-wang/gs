@@ -2,16 +2,27 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { questions, type WrongRecord, type DailyStat, type Question } from '../data/questions'
 
+interface User {
+  id: string
+  name: string
+  avatar: string
+}
+
 interface ExamStore {
+  user: User | null
   wrongBook: WrongRecord[]
   dailyStats: DailyStat[]
   currentQuestionIndex: number
   userAnswers: Record<string, number>
+  lastChapterId: string
+  login: (name: string) => void
+  logout: () => void
   addWrongQuestion: (questionId: string, userAnswer: number) => void
   removeWrongQuestion: (questionId: string) => void
   clearWrongBook: () => void
   recordAnswer: (questionId: string, answer: number, isCorrect: boolean) => void
   setCurrentQuestionIndex: (index: number) => void
+  setLastChapterId: (chapterId: string) => void
   resetUserAnswers: () => void
   getStats: () => { totalQuestions: number; correctRate: number; wrongCount: number; studyDays: number }
   getQuestionsByChapter: (chapterId: string) => Question[]
@@ -22,10 +33,26 @@ const STORAGE_KEY = 'exam-practice-storage'
 export const useExamStore = create<ExamStore>()(
   persist(
     (set, get) => ({
+      user: null,
       wrongBook: [],
       dailyStats: [],
       currentQuestionIndex: 0,
       userAnswers: {},
+      lastChapterId: 'all',
+
+      login: (name: string) => {
+        set({
+          user: {
+            id: Date.now().toString(),
+            name,
+            avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`
+          }
+        })
+      },
+
+      logout: () => {
+        set({ user: null })
+      },
 
       addWrongQuestion: (questionId: string, userAnswer: number) => {
         set((state) => {
@@ -89,6 +116,10 @@ export const useExamStore = create<ExamStore>()(
         set({ currentQuestionIndex: index })
       },
 
+      setLastChapterId: (chapterId: string) => {
+        set({ lastChapterId: chapterId })
+      },
+
       resetUserAnswers: () => {
         set({ userAnswers: {}, currentQuestionIndex: 0 })
       },
@@ -119,9 +150,12 @@ export const useExamStore = create<ExamStore>()(
     {
       name: STORAGE_KEY,
       partialize: (state) => ({
+        user: state.user,
         wrongBook: state.wrongBook,
         dailyStats: state.dailyStats,
-        userAnswers: state.userAnswers
+        userAnswers: state.userAnswers,
+        lastChapterId: state.lastChapterId,
+        currentQuestionIndex: state.currentQuestionIndex
       })
     }
   )
